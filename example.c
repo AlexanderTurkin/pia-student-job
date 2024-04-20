@@ -1,19 +1,16 @@
-﻿#define _CRT_SECURE_NO_WARNINGS
-
+#define _CRT_SECURE_NO_WARNINGS
 #include <stdio.h>
-#include <locale.h>
-#include <malloc.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>
 #include <time.h>
+#include <locale.h>
 
 struct Car {
-    char Brand[50];      // Марка
-    char Model[50];      // Модель
-    int Year;            // Год выпуска
-    float Mileage;       // Пробег
-    float Price;         // Стоимость
+    char* Brand;      // Марка
+    char* Model;      // Модель
+    int Year;         // Год выпуска
+    float Mileage;    // Пробег
+    float Price;      // Стоимость
 };
 typedef struct Car Car_type;
 
@@ -23,8 +20,8 @@ Car_type SearchCarByBrandOrModel(Car_type* Cars, int countCars, char* searchQuer
 Car_type* SortCarsByYearAndPrice(Car_type* Cars, int countCars, int sortBy);
 void WriteToFile(Car_type* Cars, int countCars, char* filename);
 int SizeFromFile(char* filename);
-Car_type* ReadFromFile(char* filename);
-
+Car_type* ReadFromFile(char* filename, int* size);
+void FreeCars(Car_type* Cars, int countCars);
 
 int main() {
     setlocale(LC_ALL, "RUS");
@@ -33,14 +30,9 @@ int main() {
     Car_type* Cars = NULL;
     int countCars = 0, menu, sortBy;
     char filename[25] = "cars.txt"; // Файл по умолчанию
-    struct __stat64 st;
-    time_t t = time(NULL); // Текущая дата и время
 
     do {
-        printf("\nТекущий файл: %s (автомобилей: %d)", filename, countCars);
-        if (__stat64(filename, &st) == 0) {
-            printf("\nПоследнее редактирование: %s", ctime(&st.st_mtime));
-        }
+        printf("\nТекущий файл: %s (автомобилей: %d)\n", filename, countCars);
         printf("\n1 - Добавить автомобиль\n"
             "2 - Вывод добавленных автомобилей\n"
             "3 - Найти автомобиль\n"
@@ -53,7 +45,7 @@ int main() {
             "Выберите действие: ");
 
         scanf("%d", &menu);
-        getchar();
+        getchar(); // Для захвата '\n' после ввода числа
 
         switch (menu) {
         case 1:
@@ -67,19 +59,16 @@ int main() {
         case 3: {
             char searchQuery[100];
             printf("Введите марку или модель для поиска: ");
-            gets(searchQuery);
+            fgets(searchQuery, 100, stdin);
+            searchQuery[strcspn(searchQuery, "\n")] = 0; // Удаление новой строки
             Car_type result = SearchCarByBrandOrModel(Cars, countCars, searchQuery);
-            if (strcmp(result.Brand, "") != 0) ShowCars(&result, 1);
+            if (strlen(result.Brand) > 0) ShowCars(&result, 1);
             else printf("Автомобиль не найден.\n");
             break;
         }
         case 4:
             if (countCars > 0) {
-                printf("Выберите параметр сортировки:\n");
-                printf("1 - Год\n");
-                printf("2 - Цена\n");
-                printf("3 - Пробег\n");
-                printf("4 - Алфавит марки\n");
+                printf("Выберите параметр сортировки:\n1 - Год\n2 - Цена\n");
                 scanf("%d", &sortBy);
                 Cars = SortCarsByYearAndPrice(Cars, countCars, sortBy);
                 ShowCars(Cars, countCars);
@@ -91,37 +80,41 @@ int main() {
             else printf("Список автомобилей пуст.\n");
             break;
         case 6:
-            countCars = SizeFromFile(filename);
-            Cars = realloc(Cars, sizeof(Car_type) * countCars);
-            Cars = ReadFromFile(filename);
+            free(Cars); // Освобождаем старый массив
+            Cars = ReadFromFile(filename, &countCars);
             if (countCars > 0) ShowCars(Cars, countCars);
             else printf("Файл пуст или не существует.\n");
             break;
         case 7:
             printf("Введите название файла: ");
-            gets(filename);
+            fgets(filename, 25, stdin);
+            filename[strcspn(filename, "\n")] = 0; // Удаление новой строки
             break;
         case 8:
-            system("cls");
+            system("cls||clear");
             break;
         case 0:
+            FreeCars(Cars, countCars);
             free(Cars);
-            return 0;
+            break;
         default:
             printf("Некорректный выбор.\n");
         }
     } while (menu != 0);
 
-    free(Cars);
     return 0;
 }
 
 Car_type AddCar() {
     Car_type newCar;
+    newCar.Brand = (char*)malloc(50 * sizeof(char));
+    newCar.Model = (char*)malloc(50 * sizeof(char));
     printf("Введите марку автомобиля: ");
-    gets(newCar.Brand);
+    fgets(newCar.Brand, 50, stdin);
+    newCar.Brand[strcspn(newCar.Brand, "\n")] = 0; // Удаление новой строки
     printf("Введите модель автомобиля: ");
-    gets(newCar.Model);
+    fgets(newCar.Model, 50, stdin);
+    newCar.Model[strcspn(newCar.Model, "\n")] = 0; // Удаление новой строки
     printf("Введите год выпуска: ");
     scanf("%d", &newCar.Year);
     printf("Введите пробег: ");
@@ -133,17 +126,17 @@ Car_type AddCar() {
 }
 
 void ShowCars(Car_type* Cars, int countCars) {
-    printf("\n---------------------------------------------------------------------------------\n");
+    printf("\n--------------------------------------------------------------------------------\n");
     printf("|    Марка    |    Модель   | Год вып. |  Пробег  |  Стоимость  |\n");
-    printf("---------------------------------------------------------------------------------\n");
+    printf("--------------------------------------------------------------------------------\n");
     for (int i = 0; i < countCars; i++) {
         printf("|%12s|%12s|%10d|%9.2f|%12.2f|\n", Cars[i].Brand, Cars[i].Model, Cars[i].Year, Cars[i].Mileage, Cars[i].Price);
-        printf("---------------------------------------------------------------------------------\n");
+        printf("--------------------------------------------------------------------------------\n");
     }
 }
 
 Car_type SearchCarByBrandOrModel(Car_type* Cars, int countCars, char* searchQuery) {
-    Car_type notFound = { "", "", 0, 0.0f, 0.0f };
+    Car_type notFound = { NULL, NULL, 0, 0.0f, 0.0f }; // Инициализация пустого автомобиля для возвращения в случае отсутствия результата
     for (int i = 0; i < countCars; i++) {
         if (strstr(Cars[i].Brand, searchQuery) != NULL || strstr(Cars[i].Model, searchQuery) != NULL) {
             return Cars[i];
@@ -153,38 +146,21 @@ Car_type SearchCarByBrandOrModel(Car_type* Cars, int countCars, char* searchQuer
 }
 
 Car_type* SortCarsByYearAndPrice(Car_type* Cars, int countCars, int sortBy) {
-    Car_type temp;
     for (int i = 0; i < countCars - 1; i++) {
         for (int j = 0; j < countCars - i - 1; j++) {
+            int shouldSwap = 0;
             switch (sortBy) {
             case 1: // Год
-                if (Cars[j].Year > Cars[j + 1].Year || (Cars[j].Year == Cars[j + 1].Year && Cars[j].Price > Cars[j + 1].Price)) {
-                    temp = Cars[j];
-                    Cars[j] = Cars[j + 1];
-                    Cars[j + 1] = temp;
-                }
+                shouldSwap = Cars[j].Year > Cars[j + 1].Year;
                 break;
             case 2: // Цена
-                if (Cars[j].Price > Cars[j + 1].Price || (Cars[j].Price == Cars[j + 1].Price && Cars[j].Year > Cars[j + 1].Year)) {
-                    temp = Cars[j];
-                    Cars[j] = Cars[j + 1];
-                    Cars[j + 1] = temp;
-                }
+                shouldSwap = Cars[j].Price > Cars[j + 1].Price;
                 break;
-            case 3: // Пробег
-                if (Cars[j].Mileage > Cars[j + 1].Mileage || (Cars[j].Mileage == Cars[j + 1].Mileage && Cars[j].Year > Cars[j + 1].Year)) {
-                    temp = Cars[j];
-                    Cars[j] = Cars[j + 1];
-                    Cars[j + 1] = temp;
-                }
-                break;
-            case 4: // Алфавит марки
-                if (strcmp(Cars[j].Brand, Cars[j + 1].Brand) > 0 || (strcmp(Cars[j].Brand, Cars[j + 1].Brand) == 0 && Cars[j].Year > Cars[j + 1].Year)) {
-                    temp = Cars[j];
-                    Cars[j] = Cars[j + 1];
-                    Cars[j + 1] = temp;
-                }
-                break;
+            }
+            if (shouldSwap) {
+                Car_type temp = Cars[j];
+                Cars[j] = Cars[j + 1];
+                Cars[j + 1] = temp;
             }
         }
     }
@@ -200,7 +176,7 @@ void WriteToFile(Car_type* Cars, int countCars, char* filename) {
     for (int i = 0; i < countCars; i++) {
         fprintf(file, "%s %s %d %.2f %.2f\n", Cars[i].Brand, Cars[i].Model, Cars[i].Year, Cars[i].Mileage, Cars[i].Price);
     }
-    fclose(file); 
+    fclose(file);
 }
 
 int SizeFromFile(char* filename) {
@@ -209,24 +185,51 @@ int SizeFromFile(char* filename) {
         return 0;
     }
     int count = 0;
+    char ch;
     while (!feof(file)) {
-        if (fgetc(file) == '\n') count++;
+        ch = fgetc(file);
+        if (ch == '\n') {
+            count++;
+        }
     }
     fclose(file);
     return count;
 }
 
-Car_type* ReadFromFile(char* filename) {
-    int size = SizeFromFile(filename);
-    Car_type* Cars = malloc(size * sizeof(Car_type));
+Car_type* ReadFromFile(char* filename, int* size) {
     FILE* file = fopen(filename, "r");
     if (file == NULL) {
         printf("Не удалось открыть файл для чтения.\n");
+        *size = 0;
         return NULL;
     }
-    for (int i = 0; i < size; i++) {
-        fscanf(file, "%s %s %d %f %f\n", Cars[i].Brand, Cars[i].Model, &Cars[i].Year, &Cars[i].Mileage, &Cars[i].Price);
+
+    int tempSize = SizeFromFile(filename);
+    Car_type* Cars = (Car_type*)malloc(tempSize * sizeof(Car_type));
+
+    char line[256];
+    int i = 0;
+    while (fgets(line, sizeof(line), file)) {
+        Cars[i].Brand = (char*)malloc(50 * sizeof(char));
+        Cars[i].Model = (char*)malloc(50 * sizeof(char));
+        if (sscanf(line, "%49s %49s %d %f %f", Cars[i].Brand, Cars[i].Model, &Cars[i].Year, &Cars[i].Mileage, &Cars[i].Price) == 5) {
+            i++;
+        }
+        else {
+            // Обработка ошибки, если строка не соответствует ожидаемому формату
+            free(Cars[i].Brand);
+            free(Cars[i].Model);
+        }
     }
     fclose(file);
+    *size = i; // Обновляем фактический размер массива, основанный на количестве успешно прочитанных записей
     return Cars;
+}
+
+
+void FreeCars(Car_type* Cars, int countCars) {
+    for (int i = 0; i < countCars; i++) {
+        free(Cars[i].Brand);
+        free(Cars[i].Model);
+    }
 }
